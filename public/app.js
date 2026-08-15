@@ -1,12 +1,22 @@
 const form = document.querySelector('#registrationForm');
 const statusBox = document.querySelector('#status');
 const remaining = document.querySelector('#remaining');
+const submitButton = form.querySelector('button[type="submit"]');
 
 async function loadWorkshop(){
   try{
     const res=await fetch('/api/workshop');
     const data=await res.json();
     remaining.textContent = `${data.remaining} مقعد`;
+    if(data.registrationOpen === false){
+      submitButton.disabled = true;
+      submitButton.textContent = 'التسجيل مغلق حاليًا';
+      statusBox.className='status error';
+      statusBox.textContent='التسجيل مغلق حاليًا. يرجى متابعة الجهة المنظمة لأي تحديث.';
+    }else{
+      submitButton.disabled = false;
+      submitButton.innerHTML = 'تسجيل الآن <span>↗</span>';
+    }
   }catch{remaining.textContent='متاح';}
 }
 

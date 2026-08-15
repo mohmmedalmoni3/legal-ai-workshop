@@ -62,7 +62,8 @@ const Registration = mongoose.model('Registration', registrationSchema);
 const workshopSchema = new mongoose.Schema({
   workshopId: { type: String, unique: true, required: true },
   capacity: { type: Number, required: true },
-  registeredCount: { type: Number, default: 0 }
+  registeredCount: { type: Number, default: 0 },
+  registrationOpen: { type: Boolean, default: true }
 });
 const Workshop = mongoose.model('Workshop', workshopSchema);
 
@@ -119,10 +120,10 @@ app.get('/api/workshop', async (_req, res) => {
   try {
     const workshop = await Workshop.findOneAndUpdate(
       { workshopId: WORKSHOP_ID },
-      { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0 } },
+      { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0, registrationOpen: true } },
       { upsert: true, new: true }
     ).lean();
-    res.json({ title: process.env.WORKSHOP_TITLE, capacity: workshop.capacity, registered: workshop.registeredCount, remaining: Math.max(workshop.capacity - workshop.registeredCount, 0) });
+    res.json({ title: process.env.WORKSHOP_TITLE, capacity: workshop.capacity, registered: workshop.registeredCount, remaining: Math.max(workshop.capacity - workshop.registeredCount, 0), registrationOpen: workshop.registrationOpen !== false });
   } catch {
     res.status(500).json({ message: 'تعذر تحميل معلومات الورشة.' });
   }
@@ -137,8 +138,17 @@ app.post('/api/register', async (req, res) => {
   }
 
   try {
+    const currentWorkshop = await Workshop.findOneAndUpdate(
+      { workshopId: WORKSHOP_ID },
+      { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0, registrationOpen: true } },
+      { upsert: true, new: true }
+    );
+    if (currentWorkshop.registrationOpen === false) {
+      return res.status(403).json({ message: 'التسجيل مغلق حاليًا.' });
+    }
+
     const workshop = await Workshop.findOneAndUpdate(
-      { workshopId: WORKSHOP_ID, $expr: { $lt: ['$registeredCount', '$capacity'] } },
+      { workshopId: WORKSHOP_ID, registrationOpen: { $ne: false }, $expr: { $lt: ['$registeredCount', '$capacity'] } },
       { $inc: { registeredCount: 1 } },
       { new: true }
     );
@@ -198,27 +208,45 @@ app.get('/api/admin/summary', adminRequired, async (_req, res) => {
     title: process.env.WORKSHOP_TITLE,
     capacity: workshop?.capacity ?? CAPACITY,
     registered: registrationsCount,
-    remaining: Math.max((workshop?.capacity ?? CAPACITY) - registrationsCount, 0)
+    remaining: Math.max((workshop?.capacity ?? CAPACITY) - registrationsCount, 0),
+    registrationOpen: workshop?.registrationOpen !== false
   });
 });
 
 app.patch('/api/admin/workshop', adminRequired, async (req, res) => {
-  const capacity = Number(req.body?.capacity);
-  if (!Number.isInteger(capacity) || capacity < 1) {
-    return res.status(400).json({ message: 'عدد المقاعد يجب أن يكون رقمًا صحيحًا أكبر من صفر.' });
+  const update = {};
+  let capacity;
+  if (Object.hasOwn(req.body || {}, 'capacity')) {
+    capacity = Number(req.body?.capacity);
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      return res.status(400).json({ message: 'عدد المقاعد يجب أن يكون رقمًا صحيحًا أكبر من صفر.' });
+    }
+    update.capacity = capacity;
+  }
+
+  if (Object.hasOwn(req.body || {}, 'registrationOpen')) {
+    update.registrationOpen = req.body.registrationOpen === true;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return res.status(400).json({ message: 'لا يوجد تعديل مطلوب.' });
   }
 
   const registrationsCount = await Registration.countDocuments({ workshopId: WORKSHOP_ID });
-  if (capacity < registrationsCount) {
+  if (capacity && capacity < registrationsCount) {
     return res.status(400).json({ message: `لا يمكن جعل الحد أقل من عدد المسجلين الحالي (${registrationsCount}).` });
   }
 
+  const setOnInsert = { workshopId: WORKSHOP_ID };
+  if (!Object.hasOwn(update, 'capacity')) setOnInsert.capacity = CAPACITY;
+  if (!Object.hasOwn(update, 'registrationOpen')) setOnInsert.registrationOpen = true;
+
   const workshop = await Workshop.findOneAndUpdate(
     { workshopId: WORKSHOP_ID },
-    { $set: { capacity, registeredCount: registrationsCount }, $setOnInsert: { workshopId: WORKSHOP_ID } },
+    { $set: { ...update, registeredCount: registrationsCount }, $setOnInsert: setOnInsert },
     { upsert: true, new: true }
   ).lean();
-  res.json({ message: 'تم تحديث عدد المقاعد.', capacity: workshop.capacity, registered: registrationsCount, remaining: Math.max(workshop.capacity - registrationsCount, 0) });
+  res.json({ message: 'تم تحديث إعدادات الورشة.', capacity: workshop.capacity, registered: registrationsCount, remaining: Math.max(workshop.capacity - registrationsCount, 0), registrationOpen: workshop.registrationOpen !== false });
 });
 
 app.get('/api/admin/registrations', adminRequired, async (_req, res) => {
@@ -250,7 +278,7 @@ mongoose.connect(MONGODB_URI)
     await Promise.all([Registration.init(), Workshop.init()]);
     await Workshop.findOneAndUpdate(
       { workshopId: WORKSHOP_ID },
-      { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0 } },
+      { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0, registrationOpen: true } },
       { upsert: true }
     );
     app.listen(PORT, HOST, () => console.log(`Workshop app running on ${HOST}:${PORT}`));

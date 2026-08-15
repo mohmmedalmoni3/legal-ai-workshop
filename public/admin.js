@@ -7,13 +7,16 @@ const adminStatus = document.querySelector('#adminStatus');
 const capacityValue = document.querySelector('#capacityValue');
 const registeredValue = document.querySelector('#registeredValue');
 const remainingValue = document.querySelector('#remainingValue');
+const registrationStateValue = document.querySelector('#registrationStateValue');
 const capacityInput = document.querySelector('#capacityInput');
 const capacityForm = document.querySelector('#capacityForm');
+const toggleRegistrationBtn = document.querySelector('#toggleRegistrationBtn');
 const registrationsBody = document.querySelector('#registrationsBody');
 const searchInput = document.querySelector('#searchInput');
 const emptyState = document.querySelector('#emptyState');
 
 let registrations = [];
+let registrationOpen = true;
 
 function setStatus(element, message, type = '') {
   element.className = `status ${type}`.trim();
@@ -83,6 +86,10 @@ async function loadDashboard() {
   capacityValue.textContent = summary.capacity;
   registeredValue.textContent = summary.registered;
   remainingValue.textContent = summary.remaining;
+  registrationOpen = summary.registrationOpen !== false;
+  registrationStateValue.textContent = registrationOpen ? 'مفتوح' : 'مغلق';
+  toggleRegistrationBtn.textContent = registrationOpen ? 'إغلاق التقديم' : 'فتح التقديم';
+  toggleRegistrationBtn.className = registrationOpen ? 'danger' : 'open';
   capacityInput.value = summary.capacity;
   registrations = registrationsData.registrations;
   renderRows();
@@ -116,6 +123,21 @@ capacityForm.addEventListener('submit', async (event) => {
     registeredValue.textContent = data.registered;
     remainingValue.textContent = data.remaining;
     setStatus(adminStatus, data.message, 'success');
+  } catch (error) {
+    setStatus(adminStatus, error.message, 'error');
+  }
+});
+
+toggleRegistrationBtn.addEventListener('click', async () => {
+  const nextState = !registrationOpen;
+  setStatus(adminStatus, nextState ? 'جارٍ فتح التقديم...' : 'جارٍ إغلاق التقديم...');
+  try {
+    const data = await api('/api/admin/workshop', { method: 'PATCH', body: JSON.stringify({ registrationOpen: nextState }) });
+    registrationOpen = data.registrationOpen !== false;
+    registrationStateValue.textContent = registrationOpen ? 'مفتوح' : 'مغلق';
+    toggleRegistrationBtn.textContent = registrationOpen ? 'إغلاق التقديم' : 'فتح التقديم';
+    toggleRegistrationBtn.className = registrationOpen ? 'danger' : 'open';
+    setStatus(adminStatus, registrationOpen ? 'تم فتح التقديم.' : 'تم إغلاق التقديم.', 'success');
   } catch (error) {
     setStatus(adminStatus, error.message, 'error');
   }

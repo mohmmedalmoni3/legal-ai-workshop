@@ -39,6 +39,7 @@
         <div><span>عدد المقاعد</span><b id="capacityValue">-</b></div>
         <div><span>المسجلون</span><b id="registeredValue">-</b></div>
         <div><span>المتبقي</span><b id="remainingValue">-</b></div>
+        <div><span>حالة التقديم</span><b id="registrationStateValue">-</b></div>
       </section>
 
       <section class="controls">
@@ -47,6 +48,7 @@
           <button type="submit">حفظ الحد</button>
         </form>
         <div class="tools">
+          <button id="toggleRegistrationBtn" type="button" class="danger">إغلاق التقديم</button>
           <input id="searchInput" placeholder="بحث بالاسم أو البريد أو الهاتف">
           <a class="download" href="/api/admin/registrations.csv">تصدير CSV</a>
         </div>
