@@ -247,6 +247,7 @@ app.use((_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')
 
 mongoose.connect(MONGODB_URI)
   .then(async () => {
+    await Promise.all([Registration.init(), Workshop.init()]);
     await Workshop.findOneAndUpdate(
       { workshopId: WORKSHOP_ID },
       { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0 } },
