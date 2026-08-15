@@ -57,6 +57,9 @@ WORKSHOP_TITLE=كيفية إدخال واستخدام الذكاء الاصطن�
 WORKSHOP_CAPACITY=100
 CORS_ORIGIN=
 NODE_VERSION=20
+ADMIN_USERNAME=اسم مستخدم لوحة الإدارة
+ADMIN_PASSWORD=كلمة مرور قوية للوحة الإدارة
+ADMIN_SECRET=نص طويل عشوائي لتأمين جلسة الإدارة
 ```
 
 لا تضف `PORT` في Render. Render يحددها تلقائيًا.

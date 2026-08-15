@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>لوحة الإدارة | ورشة الذكاء الاصطناعي في القانون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+  <main class="shell">
+    <section id="loginView" class="login-panel">
+      <div class="brand">
+        <span>LEGAL AI</span>
+        <h1>لوحة إدارة التسجيلات</h1>
+        <p>دخول مخصص للمنظم لمتابعة المسجلين وتعديل حد المقاعد.</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <label>اسم المستخدم<input name="username" required autocomplete="username"></label>
+        <label>كلمة المرور<input name="password" type="password" required autocomplete="current-password"></label>
+        <button type="submit">دخول</button>
+        <p id="loginStatus" class="status"></p>
+      </form>
+    </section>
+
+    <section id="adminView" class="dashboard" hidden>
+      <header class="topbar">
+        <div>
+          <span class="eyebrow">لوحة التحكم</span>
+          <h1>إدارة تسجيلات الورشة</h1>
+        </div>
+        <button id="logoutBtn" class="ghost">تسجيل الخروج</button>
+      </header>
+
+      <section class="stats">
+        <div><span>عدد المقاعد</span><b id="capacityValue">-</b></div>
+        <div><span>المسجلون</span><b id="registeredValue">-</b></div>
+        <div><span>المتبقي</span><b id="remainingValue">-</b></div>
+      </section>
+
+      <section class="controls">
+        <form id="capacityForm" class="capacity-form">
+          <label>تعديل الحد الأقصى للمقاعد<input id="capacityInput" name="capacity" type="number" min="1" required></label>
+          <button type="submit">حفظ الحد</button>
+        </form>
+        <div class="tools">
+          <input id="searchInput" placeholder="بحث بالاسم أو البريد أو الهاتف">
+          <a class="download" href="/api/admin/registrations.csv">تصدير CSV</a>
+        </div>
+      </section>
+
+      <p id="adminStatus" class="status"></p>
+
+      <section class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الاسم</th>
+              <th>البريد</th>
+              <th>الهاتف</th>
+              <th>نوع المشارك</th>
+              <th>الدولة / المحافظة</th>
+              <th>الخبرة</th>
+              <th>وقت التسجيل</th>
+            </tr>
+          </thead>
+          <tbody id="registrationsBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty" hidden>لا توجد تسجيلات مطابقة.</div>
+      </section>
+    </section>
+  </main>
+  <script src="/admin.js"></script>
+</body>
+</html>

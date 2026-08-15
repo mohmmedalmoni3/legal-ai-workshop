@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -15,6 +16,10 @@ const HOST = process.env.HOST || '0.0.0.0';
 const WORKSHOP_ID = process.env.WORKSHOP_ID || 'ai-law-2026';
 const CAPACITY = Number(process.env.WORKSHOP_CAPACITY || 100);
 const MONGODB_URI = process.env.MONGODB_URI;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_SECRET = process.env.ADMIN_SECRET || ADMIN_PASSWORD || crypto.randomBytes(32).toString('hex');
+const ADMIN_SESSION_HOURS = Number(process.env.ADMIN_SESSION_HOURS || 12);
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -61,6 +66,51 @@ const workshopSchema = new mongoose.Schema({
 });
 const Workshop = mongoose.model('Workshop', workshopSchema);
 
+function parseCookies(header = '') {
+  return Object.fromEntries(header.split(';').map((cookie) => {
+    const [name, ...value] = cookie.trim().split('=');
+    return [name, decodeURIComponent(value.join('='))];
+  }).filter(([name]) => name));
+}
+
+function timingSafeEqualText(a = '', b = '') {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function signSession(payload) {
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', ADMIN_SECRET).update(body).digest('base64url');
+  return `${body}.${signature}`;
+}
+
+function verifySession(token) {
+  const [body, signature] = String(token || '').split('.');
+  if (!body || !signature) return null;
+  const expected = crypto.createHmac('sha256', ADMIN_SECRET).update(body).digest('base64url');
+  if (!timingSafeEqualText(signature, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (!payload?.username || !payload?.expiresAt || Date.now() > payload.expiresAt) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function adminRequired(req, res, next) {
+  const cookies = parseCookies(req.headers.cookie);
+  const session = verifySession(cookies.admin_session);
+  if (!session) return res.status(401).json({ message: 'يرجى تسجيل الدخول إلى لوحة الإدارة.' });
+  req.admin = session;
+  return next();
+}
+
+function csvEscape(value) {
+  return `"${String(value ?? '').replaceAll('"', '""')}"`;
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'legal-ai-workshop-registration' });
 });
@@ -105,6 +155,91 @@ app.post('/api/register', async (req, res) => {
   } catch {
     res.status(500).json({ message: 'حدث خطأ غير متوقع. حاول مرة أخرى.' });
   }
+});
+
+app.post('/api/admin/login', (req, res) => {
+  if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+    return res.status(503).json({ message: 'لم يتم إعداد حساب الإدارة بعد. أضف ADMIN_USERNAME و ADMIN_PASSWORD في متغيرات البيئة.' });
+  }
+
+  const { username, password } = req.body || {};
+  const valid = timingSafeEqualText(username, ADMIN_USERNAME) && timingSafeEqualText(password, ADMIN_PASSWORD);
+  if (!valid) return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
+
+  const token = signSession({
+    username: ADMIN_USERNAME,
+    expiresAt: Date.now() + ADMIN_SESSION_HOURS * 60 * 60 * 1000
+  });
+  res.cookie('admin_session', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: ADMIN_SESSION_HOURS * 60 * 60 * 1000
+  });
+  return res.json({ message: 'تم تسجيل الدخول بنجاح.', username: ADMIN_USERNAME });
+});
+
+app.post('/api/admin/logout', (_req, res) => {
+  res.clearCookie('admin_session');
+  res.json({ message: 'تم تسجيل الخروج.' });
+});
+
+app.get('/api/admin/me', adminRequired, (req, res) => {
+  res.json({ username: req.admin.username });
+});
+
+app.get('/api/admin/summary', adminRequired, async (_req, res) => {
+  const [workshop, registrationsCount] = await Promise.all([
+    Workshop.findOne({ workshopId: WORKSHOP_ID }).lean(),
+    Registration.countDocuments({ workshopId: WORKSHOP_ID })
+  ]);
+  res.json({
+    workshopId: WORKSHOP_ID,
+    title: process.env.WORKSHOP_TITLE,
+    capacity: workshop?.capacity ?? CAPACITY,
+    registered: registrationsCount,
+    remaining: Math.max((workshop?.capacity ?? CAPACITY) - registrationsCount, 0)
+  });
+});
+
+app.patch('/api/admin/workshop', adminRequired, async (req, res) => {
+  const capacity = Number(req.body?.capacity);
+  if (!Number.isInteger(capacity) || capacity < 1) {
+    return res.status(400).json({ message: 'عدد المقاعد يجب أن يكون رقمًا صحيحًا أكبر من صفر.' });
+  }
+
+  const registrationsCount = await Registration.countDocuments({ workshopId: WORKSHOP_ID });
+  if (capacity < registrationsCount) {
+    return res.status(400).json({ message: `لا يمكن جعل الحد أقل من عدد المسجلين الحالي (${registrationsCount}).` });
+  }
+
+  const workshop = await Workshop.findOneAndUpdate(
+    { workshopId: WORKSHOP_ID },
+    { $set: { capacity, registeredCount: registrationsCount }, $setOnInsert: { workshopId: WORKSHOP_ID } },
+    { upsert: true, new: true }
+  ).lean();
+  res.json({ message: 'تم تحديث عدد المقاعد.', capacity: workshop.capacity, registered: registrationsCount, remaining: Math.max(workshop.capacity - registrationsCount, 0) });
+});
+
+app.get('/api/admin/registrations', adminRequired, async (_req, res) => {
+  const registrations = await Registration.find({ workshopId: WORKSHOP_ID })
+    .sort({ createdAt: -1 })
+    .lean();
+  res.json({ registrations });
+});
+
+app.get('/api/admin/registrations.csv', adminRequired, async (_req, res) => {
+  const registrations = await Registration.find({ workshopId: WORKSHOP_ID })
+    .sort({ createdAt: -1 })
+    .lean();
+  const headers = ['fullName', 'email', 'phone', 'participantType', 'country', 'experience', 'consentAccepted', 'createdAt'];
+  const rows = [
+    headers.join(','),
+    ...registrations.map((registration) => headers.map((header) => csvEscape(registration[header])).join(','))
+  ];
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="registrations.csv"');
+  res.send(`\uFEFF${rows.join('\n')}`);
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
