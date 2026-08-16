@@ -2,6 +2,7 @@ const form = document.querySelector('#registrationForm');
 const statusBox = document.querySelector('#status');
 const remaining = document.querySelector('#remaining');
 const submitButton = form.querySelector('button[type="submit"]');
+const closedBanner = document.querySelector('#closedBanner');
 
 async function loadWorkshop(){
   try{
@@ -9,13 +10,17 @@ async function loadWorkshop(){
     const data=await res.json();
     remaining.textContent = `${data.remaining} مقعد`;
     if(data.registrationOpen === false){
+      closedBanner.hidden = false;
       submitButton.disabled = true;
       submitButton.textContent = 'التسجيل مغلق حاليًا';
       statusBox.className='status error';
       statusBox.textContent='التسجيل مغلق حاليًا. يرجى متابعة الجهة المنظمة لأي تحديث.';
     }else{
+      closedBanner.hidden = true;
       submitButton.disabled = false;
       submitButton.innerHTML = 'تسجيل الآن <span>↗</span>';
+      statusBox.textContent='';
+      statusBox.className='status';
     }
   }catch{remaining.textContent='متاح';}
 }
