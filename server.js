@@ -74,6 +74,34 @@ const adminSchema = new mongoose.Schema({
 });
 const Admin = mongoose.model('Admin', adminSchema);
 
+const customFieldSchema = new mongoose.Schema({
+  workshopId: { type: String, required: true, index: true },
+  fieldName: { type: String, required: true, trim: true },
+  fieldType: { type: String, required: true, enum: ['text', 'number', 'email', 'tel', 'textarea', 'select'] },
+  fieldLabel: { type: String, required: true, trim: true },
+  placeholder: { type: String, trim: true },
+  required: { type: Boolean, default: false },
+  options: [{ type: String }], // For select fields
+  order: { type: Number, default: 0 },
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+const CustomField = mongoose.model('CustomField', customFieldSchema);
+
+const smsSettingsSchema = new mongoose.Schema({
+  workshopId: { type: String, required: true, unique: true },
+  twilioAccountSid: { type: String, trim: true },
+  twilioAuthToken: { type: String, trim: true },
+  twilioPhoneNumber: { type: String, trim: true },
+  smsEnabled: { type: Boolean, default: false },
+  notifyOnNewRegistration: { type: Boolean, default: true },
+  notifyOnCapacityAlert: { type: Boolean, default: true },
+  adminPhoneNumber: { type: String, trim: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+const SmsSettings = mongoose.model('SmsSettings', smsSettingsSchema);
+
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map((cookie) => {
     const [name, ...value] = cookie.trim().split('=');
@@ -89,6 +117,30 @@ function timingSafeEqualText(a = '', b = '') {
 
 async function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+async function sendSMS(phoneNumber, message) {
+  try {
+    const smsSettings = await SmsSettings.findOne({ workshopId: WORKSHOP_ID });
+    if (!smsSettings || !smsSettings.smsEnabled) {
+      console.log('SMS not enabled or settings not found');
+      return false;
+    }
+
+    const twilio = require('twilio');
+    const client = new twilio(smsSettings.twilioAccountSid, smsSettings.twilioAuthToken);
+    
+    await client.messages.create({
+      body: message,
+      from: smsSettings.twilioPhoneNumber,
+      to: phoneNumber
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('SMS sending failed:', error.message);
+    return false;
+  }
 }
 
 function signSession(payload) {
@@ -369,12 +421,108 @@ app.get('/api/admin/registrations.json', adminRequired, async (_req, res) => {
   res.json(registrations);
 });
 
+app.get('/api/admin/custom-fields', adminRequired, async (_req, res) => {
+  try {
+    const fields = await CustomField.find({ workshopId: WORKSHOP_ID, active: true })
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
+    return res.json({ fields });
+  } catch (error) {
+    return res.status(500).json({ message: 'حدث خطأ أثناء جلب الحقول المخصصة.' });
+  }
+});
+
+app.post('/api/admin/custom-fields', adminRequired, async (req, res) => {
+  const { fieldName, fieldType, fieldLabel, placeholder, required, options } = req.body || {};
+  
+  if (!fieldName || !fieldType || !fieldLabel) {
+    return res.status(400).json({ message: 'اسم الحقل ونوع الحقل وتسمية الحقل مطلوبة.' });
+  }
+  
+  try {
+    const maxOrder = await CustomField.findOne({ workshopId: WORKSHOP_ID })
+      .sort({ order: -1 })
+      .lean();
+    const field = await CustomField.create({
+      workshopId: WORKSHOP_ID,
+      fieldName,
+      fieldType,
+      fieldLabel,
+      placeholder: placeholder || '',
+      required: required || false,
+      options: options || [],
+      order: (maxOrder?.order || 0) + 1
+    });
+    return res.json({ message: 'تم إنشاء الحقل المخصص بنجاح.', field });
+  } catch (error) {
+    return res.status(500).json({ message: 'حدث خطأ أثناء إنشاء الحقل المخصص.' });
+  }
+});
+
+app.delete('/api/admin/custom-fields/:fieldId', adminRequired, async (req, res) => {
+  const { fieldId } = req.params;
+  
+  try {
+    const result = await CustomField.deleteOne({ _id: fieldId, workshopId: WORKSHOP_ID });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'الحقل المخصص غير موجود.' });
+    }
+    return res.json({ message: 'تم حذف الحقل المخصص بنجاح.' });
+  } catch (error) {
+    return res.status(500).json({ message: 'حدث خطأ أثناء حذف الحقل المخصص.' });
+  }
+});
+
+app.get('/api/admin/sms-settings', adminRequired, async (_req, res) => {
+  try {
+    const settings = await SmsSettings.findOne({ workshopId: WORKSHOP_ID }).lean();
+    if (!settings) {
+      return res.json({ 
+        smsEnabled: false, 
+        notifyOnNewRegistration: true, 
+        notifyOnCapacityAlert: true 
+      });
+    }
+    // Don't send sensitive data
+    const { twilioAuthToken, ...safeSettings } = settings;
+    return res.json(safeSettings);
+  } catch (error) {
+    return res.status(500).json({ message: 'حدث خطأ أثناء جلب إعدادات SMS.' });
+  }
+});
+
+app.post('/api/admin/sms-settings', adminRequired, async (req, res) => {
+  const { twilioAccountSid, twilioAuthToken, twilioPhoneNumber, smsEnabled, notifyOnNewRegistration, notifyOnCapacityAlert, adminPhoneNumber } = req.body || {};
+  
+  try {
+    const settings = await SmsSettings.findOneAndUpdate(
+      { workshopId: WORKSHOP_ID },
+      { 
+        twilioAccountSid, 
+        twilioAuthToken, 
+        twilioPhoneNumber, 
+        smsEnabled: smsEnabled || false, 
+        notifyOnNewRegistration: notifyOnNewRegistration !== false, 
+        notifyOnCapacityAlert: notifyOnCapacityAlert !== false, 
+        adminPhoneNumber,
+        updatedAt: Date.now()
+      },
+      { upsert: true, new: true }
+    );
+    
+    const { twilioAuthToken: _, ...safeSettings } = settings.toObject();
+    return res.json({ message: 'تم حفظ إعدادات SMS بنجاح.', settings: safeSettings });
+  } catch (error) {
+    return res.status(500).json({ message: 'حدث خطأ أثناء حفظ إعدادات SMS.' });
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use((_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 mongoose.connect(MONGODB_URI)
   .then(async () => {
-    await Promise.all([Registration.init(), Workshop.init(), Admin.init()]);
+    await Promise.all([Registration.init(), Workshop.init(), Admin.init(), CustomField.init(), SmsSettings.init()]);
     await Workshop.findOneAndUpdate(
       { workshopId: WORKSHOP_ID },
       { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0, registrationOpen: true } },

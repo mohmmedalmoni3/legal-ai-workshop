@@ -32,8 +32,22 @@
           <span class="eyebrow">لوحة التحكم</span>
           <h1>إدارة تسجيلات الورشة</h1>
         </div>
-        <button id="logoutBtn" class="ghost">تسجيل الخروج</button>
+        <div class="header-actions">
+          <button id="notificationBtn" class="ghost notification-btn">
+            <span class="notification-icon">🔔</span>
+            <span id="notificationCount" class="notification-count hidden">0</span>
+          </button>
+          <button id="logoutBtn" class="ghost">تسجيل الخروج</button>
+        </div>
       </header>
+
+      <div id="notificationPanel" class="notification-panel hidden">
+        <div class="notification-header">
+          <h3>الإشعارات</h3>
+          <button id="clearNotificationsBtn" class="ghost">مسح الكل</button>
+        </div>
+        <div id="notificationList" class="notification-list"></div>
+      </div>
 
       <section class="stats-section">
         <section class="stats">
@@ -80,6 +94,59 @@
           </form>
         </div>
         <div id="adminList" class="admin-list"></div>
+      </section>
+
+      <section class="custom-fields-section">
+        <h3>تخصيص حقول النموذج</h3>
+        <div class="custom-fields-controls">
+          <form id="createCustomFieldForm" class="control-form">
+            <label>اسم الحقل<input id="customFieldName" name="fieldName" placeholder="مثال: company" required></label>
+            <label>تسمية الحقل<input id="customFieldLabel" name="fieldLabel" placeholder="مثال: اسم الشركة" required></label>
+            <label>نوع الحقل
+              <select id="customFieldType" name="fieldType" required>
+                <option value="text">نص</option>
+                <option value="number">رقم</option>
+                <option value="email">بريد إلكتروني</option>
+                <option value="tel">هاتف</option>
+                <option value="textarea">منطقة نص</option>
+                <option value="select">قائمة منسدلة</option>
+              </select>
+            </label>
+            <label>نص توضيحي<input id="customFieldPlaceholder" name="placeholder" placeholder="نص توضيحي اختياري"></label>
+            <label class="check">
+              <input id="customFieldRequired" name="required" type="checkbox">
+              <span>إلزامي</span>
+            </label>
+            <label id="customFieldOptionsLabel" class="hidden">الخيارات (مفصولة بفاصلة)<input id="customFieldOptions" name="options" placeholder="خيار1, خيار2, خيار3"></label>
+            <button type="submit">إضافة حقل</button>
+          </form>
+        </div>
+        <div id="customFieldsList" class="custom-fields-list"></div>
+      </section>
+
+      <section class="sms-settings-section">
+        <h3>إعدادات الرسائل النصية (SMS)</h3>
+        <div class="sms-controls">
+          <form id="smsSettingsForm" class="control-form">
+            <label class="check">
+              <input id="smsEnabled" name="smsEnabled" type="checkbox">
+              <span>تفعيل الرسائل النصية</span>
+            </label>
+            <label>Twilio Account SID<input id="twilioAccountSid" name="twilioAccountSid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></label>
+            <label>Twilio Auth Token<input id="twilioAuthToken" name="twilioAuthToken" type="password" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></label>
+            <label>رقم هاتف Twilio<input id="twilioPhoneNumber" name="twilioPhoneNumber" placeholder="+1234567890"></label>
+            <label>رقم هاتف الأدمن للإشعارات<input id="adminPhoneNumber" name="adminPhoneNumber" placeholder="+1234567890"></label>
+            <label class="check">
+              <input id="notifyOnNewRegistration" name="notifyOnNewRegistration" type="checkbox" checked>
+              <span>إشعار عند تسجيل جديد</span>
+            </label>
+            <label class="check">
+              <input id="notifyOnCapacityAlert" name="notifyOnCapacityAlert" type="checkbox" checked>
+              <span>إشعار عند اقتراب اكتمال المقاعد</span>
+            </label>
+            <button type="submit">حفظ الإعدادات</button>
+          </form>
+        </div>
       </section>
 
       <section class="registrations-section">

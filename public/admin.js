@@ -19,13 +19,57 @@ const emptyState = document.querySelector('#emptyState');
 const adminList = document.querySelector('#adminList');
 const progressBar = document.querySelector('#progressBar');
 const progressText = document.querySelector('#progressText');
+const notificationBtn = document.querySelector('#notificationBtn');
+const notificationCount = document.querySelector('#notificationCount');
+const notificationPanel = document.querySelector('#notificationPanel');
+const notificationList = document.querySelector('#notificationList');
+const clearNotificationsBtn = document.querySelector('#clearNotificationsBtn');
+const createCustomFieldForm = document.querySelector('#createCustomFieldForm');
+const customFieldType = document.querySelector('#customFieldType');
+const customFieldOptionsLabel = document.querySelector('#customFieldOptionsLabel');
+const customFieldsList = document.querySelector('#customFieldsList');
+const smsSettingsForm = document.querySelector('#smsSettingsForm');
 
 let registrations = [];
 let registrationOpen = true;
+let notifications = [];
 
 function setStatus(element, message, type = '') {
   element.className = `status ${type}`.trim();
   element.textContent = message || '';
+}
+
+function addNotification(message, type = 'info') {
+  const notification = {
+    id: Date.now(),
+    message,
+    type,
+    time: new Date()
+  };
+  notifications.unshift(notification);
+  if (notifications.length > 50) notifications.pop();
+  updateNotificationUI();
+}
+
+function updateNotificationUI() {
+  notificationCount.textContent = notifications.length;
+  notificationCount.classList.toggle('hidden', notifications.length === 0);
+  
+  notificationList.innerHTML = notifications.map((notificationMessage) => `
+    <div class="notification-item ${notificationMessage.type}">
+      <div class="notification-message">${escapeHtml(notificationMessage.message)}</div>
+      <div class="notification-time">${formatDate(notificationMessage.time)}</div>
+    </div>
+  `).join('');
+}
+
+function toggleNotificationPanel() {
+  notificationPanel.classList.toggle('hidden');
+}
+
+function clearNotifications() {
+  notifications = [];
+  updateNotificationUI();
 }
 
 async function api(path, options = {}) {
@@ -102,7 +146,24 @@ async function loadDashboard() {
   registrations = registrationsData.registrations;
   renderRows();
   await loadAdminList();
+  await loadCustomFields();
+  await loadSmsSettings();
   updateProgressBar(summary.registered, summary.capacity);
+  
+  // Check for capacity alerts
+  checkCapacityAlerts(summary.registered, summary.capacity);
+}
+
+function checkCapacityAlerts(registered, capacity) {
+  const percentage = capacity > 0 ? (registered / capacity) * 100 : 0;
+  
+  if (percentage >= 90 && percentage < 100) {
+    addNotification(`تنبيه: اقترب التسجيل من الاكتمال (${Math.round(percentage)}%)`, 'warning');
+  } else if (percentage >= 100) {
+    addNotification('تنبيه: اكتملت جميع المقاعد!', 'error');
+  } else if (percentage >= 75 && percentage < 90) {
+    addNotification(`ملاحظة: تم ملء ${Math.round(percentage)}% من المقاعد`, 'info');
+  }
 }
 
 function updateProgressBar(registered, capacity) {
@@ -140,8 +201,10 @@ capacityForm.addEventListener('submit', async (event) => {
     registeredValue.textContent = data.registered;
     remainingValue.textContent = data.remaining;
     setStatus(adminStatus, data.message, 'success');
+    addNotification('تم تحديث حد المقاعد بنجاح', 'success');
   } catch (error) {
     setStatus(adminStatus, error.message, 'error');
+    addNotification(`خطأ: ${error.message}`, 'error');
   }
 });
 
@@ -154,8 +217,10 @@ createAdminForm.addEventListener('submit', async (event) => {
     setStatus(adminStatus, data.message, 'success');
     createAdminForm.reset();
     await loadAdminList();
+    addNotification('تم إنشاء حساب الأدمن بنجاح', 'success');
   } catch (error) {
     setStatus(adminStatus, error.message, 'error');
+    addNotification(`خطأ: ${error.message}`, 'error');
   }
 });
 
@@ -187,12 +252,65 @@ function renderAdminList(admins) {
       try {
         await api(`/api/admin/${username}`, { method: 'DELETE' });
         setStatus(adminStatus, 'تم حذف حساب الأدمن بنجاح.', 'success');
+        addNotification('تم حذف حساب الأدمن', 'success');
         await loadAdminList();
       } catch (error) {
         setStatus(adminStatus, error.message, 'error');
+        addNotification(`خطأ: ${error.message}`, 'error');
       }
     });
   });
+}
+
+async function loadCustomFields() {
+  try {
+    const data = await api('/api/admin/custom-fields');
+    renderCustomFields(data.fields);
+  } catch (error) {
+    console.error('Failed to load custom fields:', error);
+  }
+}
+
+function renderCustomFields(fields) {
+  customFieldsList.innerHTML = fields.map((field) => `
+    <div class="custom-field-item">
+      <div class="custom-field-info">
+        <span class="custom-field-name">${escapeHtml(field.fieldLabel)}</span>
+        <span class="custom-field-details">${escapeHtml(field.fieldType)} ${field.required ? '(إلزامي)' : ''}</span>
+      </div>
+      <button class="delete-field-btn" data-field-id="${field._id}">حذف</button>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.delete-field-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fieldId = btn.dataset.fieldId;
+      if (!confirm('هل أنت متأكد من حذف هذا الحقل؟')) return;
+      
+      try {
+        await api(`/api/admin/custom-fields/${fieldId}`, { method: 'DELETE' });
+        addNotification('تم حذف الحقل المخصص', 'success');
+        await loadCustomFields();
+      } catch (error) {
+        addNotification(`خطأ: ${error.message}`, 'error');
+      }
+    });
+  });
+}
+
+async function loadSmsSettings() {
+  try {
+    const settings = await api('/api/admin/sms-settings');
+    document.getElementById('smsEnabled').checked = settings.smsEnabled;
+    document.getElementById('twilioAccountSid').value = settings.twilioAccountSid || '';
+    document.getElementById('twilioAuthToken').value = ''; // Never load auth token for security
+    document.getElementById('twilioPhoneNumber').value = settings.twilioPhoneNumber || '';
+    document.getElementById('adminPhoneNumber').value = settings.adminPhoneNumber || '';
+    document.getElementById('notifyOnNewRegistration').checked = settings.notifyOnNewRegistration;
+    document.getElementById('notifyOnCapacityAlert').checked = settings.notifyOnCapacityAlert;
+  } catch (error) {
+    console.error('Failed to load SMS settings:', error);
+  }
 }
 
 toggleRegistrationBtn.addEventListener('click', async () => {
@@ -205,13 +323,59 @@ toggleRegistrationBtn.addEventListener('click', async () => {
     toggleRegistrationBtn.textContent = registrationOpen ? 'إغلاق التقديم' : 'فتح التقديم';
     toggleRegistrationBtn.className = registrationOpen ? 'danger' : 'open';
     setStatus(adminStatus, registrationOpen ? 'تم فتح التقديم.' : 'تم إغلاق التقديم.', 'success');
+    addNotification(registrationOpen ? 'تم فتح التقديم' : 'تم إغلاق التقديم', 'success');
   } catch (error) {
     setStatus(adminStatus, error.message, 'error');
+    addNotification(`خطأ: ${error.message}`, 'error');
   }
 });
 
 searchInput.addEventListener('input', renderRows);
 filterType.addEventListener('change', renderRows);
+
+notificationBtn.addEventListener('click', toggleNotificationPanel);
+clearNotificationsBtn.addEventListener('click', clearNotifications);
+
+customFieldType.addEventListener('change', () => {
+  customFieldOptionsLabel.classList.toggle('hidden', customFieldType.value !== 'select');
+});
+
+createCustomFieldForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const payload = Object.fromEntries(new FormData(createCustomFieldForm).entries());
+    payload.required = payload.required === 'on';
+    
+    if (payload.fieldType === 'select') {
+      payload.options = payload.options ? payload.options.split(',').map(opt => opt.trim()) : [];
+    } else {
+      delete payload.options;
+    }
+    
+    const data = await api('/api/admin/custom-fields', { method: 'POST', body: JSON.stringify(payload) });
+    addNotification('تم إنشاء الحقل المخصص بنجاح', 'success');
+    createCustomFieldForm.reset();
+    customFieldOptionsLabel.classList.add('hidden');
+    await loadCustomFields();
+  } catch (error) {
+    addNotification(`خطأ: ${error.message}`, 'error');
+  }
+});
+
+smsSettingsForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const payload = Object.fromEntries(new FormData(smsSettingsForm).entries());
+    payload.smsEnabled = payload.smsEnabled === 'on';
+    payload.notifyOnNewRegistration = payload.notifyOnNewRegistration === 'on';
+    payload.notifyOnCapacityAlert = payload.notifyOnCapacityAlert === 'on';
+    
+    const data = await api('/api/admin/sms-settings', { method: 'POST', body: JSON.stringify(payload) });
+    addNotification('تم حفظ إعدادات SMS بنجاح', 'success');
+  } catch (error) {
+    addNotification(`خطأ: ${error.message}`, 'error');
+  }
+});
 
 api('/api/admin/me')
   .then(async () => {
