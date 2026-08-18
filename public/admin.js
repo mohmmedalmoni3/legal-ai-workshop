@@ -19,10 +19,6 @@ const emptyState = document.querySelector('#emptyState');
 const adminList = document.querySelector('#adminList');
 const progressBar = document.querySelector('#progressBar');
 const progressText = document.querySelector('#progressText');
-const createCustomFieldForm = document.querySelector('#createCustomFieldForm');
-const customFieldType = document.querySelector('#customFieldType');
-const customFieldOptionsLabel = document.querySelector('#customFieldOptionsLabel');
-const customFieldsList = document.querySelector('#customFieldsList');
 
 let registrations = [];
 let registrationOpen = true;
@@ -106,7 +102,6 @@ async function loadDashboard() {
   registrations = registrationsData.registrations;
   renderRows();
   await loadAdminList();
-  await loadCustomFields();
   updateProgressBar(summary.registered, summary.capacity);
 }
 
@@ -200,42 +195,6 @@ function renderAdminList(admins) {
   });
 }
 
-async function loadCustomFields() {
-  try {
-    const data = await api('/api/admin/custom-fields');
-    renderCustomFields(data.fields);
-  } catch (error) {
-    console.error('Failed to load custom fields:', error);
-  }
-}
-
-function renderCustomFields(fields) {
-  customFieldsList.innerHTML = fields.map((field) => `
-    <div class="custom-field-item">
-      <div class="custom-field-info">
-        <span class="custom-field-name">${escapeHtml(field.fieldLabel)}</span>
-        <span class="custom-field-details">${escapeHtml(field.fieldType)} ${field.required ? '(إلزامي)' : ''}</span>
-      </div>
-      <button class="delete-field-btn" data-field-id="${field._id}">حذف</button>
-    </div>
-  `).join('');
-
-  document.querySelectorAll('.delete-field-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const fieldId = btn.dataset.fieldId;
-      if (!confirm('هل أنت متأكد من حذف هذا الحقل؟')) return;
-      
-      try {
-        await api(`/api/admin/custom-fields/${fieldId}`, { method: 'DELETE' });
-        setStatus(adminStatus, 'تم حذف الحقل المخصص', 'success');
-        await loadCustomFields();
-      } catch (error) {
-        setStatus(adminStatus, error.message, 'error');
-      }
-    });
-  });
-}
-
 toggleRegistrationBtn.addEventListener('click', async () => {
   const nextState = !registrationOpen;
   setStatus(adminStatus, nextState ? 'جارٍ فتح التقديم...' : 'جارٍ إغلاق التقديم...');
@@ -253,32 +212,6 @@ toggleRegistrationBtn.addEventListener('click', async () => {
 
 searchInput.addEventListener('input', renderRows);
 filterType.addEventListener('change', renderRows);
-
-customFieldType.addEventListener('change', () => {
-  customFieldOptionsLabel.classList.toggle('hidden', customFieldType.value !== 'select');
-});
-
-createCustomFieldForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  try {
-    const payload = Object.fromEntries(new FormData(createCustomFieldForm).entries());
-    payload.required = payload.required === 'on';
-    
-    if (payload.fieldType === 'select') {
-      payload.options = payload.options ? payload.options.split(',').map(opt => opt.trim()) : [];
-    } else {
-      delete payload.options;
-    }
-    
-    const data = await api('/api/admin/custom-fields', { method: 'POST', body: JSON.stringify(payload) });
-    setStatus(adminStatus, 'تم إنشاء الحقل المخصص بنجاح', 'success');
-    createCustomFieldForm.reset();
-    customFieldOptionsLabel.classList.add('hidden');
-    await loadCustomFields();
-  } catch (error) {
-    setStatus(adminStatus, error.message, 'error');
-  }
-});
 
 api('/api/admin/me')
   .then(async () => {
