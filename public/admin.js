@@ -10,6 +10,7 @@ const remainingValue = document.querySelector('#remainingValue');
 const registrationStateValue = document.querySelector('#registrationStateValue');
 const capacityInput = document.querySelector('#capacityInput');
 const capacityForm = document.querySelector('#capacityForm');
+const createAdminForm = document.querySelector('#createAdminForm');
 const toggleRegistrationBtn = document.querySelector('#toggleRegistrationBtn');
 const registrationsBody = document.querySelector('#registrationsBody');
 const searchInput = document.querySelector('#searchInput');
@@ -123,6 +124,19 @@ capacityForm.addEventListener('submit', async (event) => {
     registeredValue.textContent = data.registered;
     remainingValue.textContent = data.remaining;
     setStatus(adminStatus, data.message, 'success');
+  } catch (error) {
+    setStatus(adminStatus, error.message, 'error');
+  }
+});
+
+createAdminForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setStatus(adminStatus, 'جارٍ إنشاء حساب الأدمن...');
+  try {
+    const payload = Object.fromEntries(new FormData(createAdminForm).entries());
+    const data = await api('/api/admin/create', { method: 'POST', body: JSON.stringify(payload) });
+    setStatus(adminStatus, data.message, 'success');
+    createAdminForm.reset();
   } catch (error) {
     setStatus(adminStatus, error.message, 'error');
   }

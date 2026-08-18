@@ -67,6 +67,13 @@ const workshopSchema = new mongoose.Schema({
 });
 const Workshop = mongoose.model('Workshop', workshopSchema);
 
+const adminSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 50 },
+  password: { type: String, required: true, minlength: 6 },
+  createdAt: { type: Date, default: Date.now }
+});
+const Admin = mongoose.model('Admin', adminSchema);
+
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map((cookie) => {
     const [name, ...value] = cookie.trim().split('=');
@@ -78,6 +85,10 @@ function timingSafeEqualText(a = '', b = '') {
   const left = Buffer.from(String(a));
   const right = Buffer.from(String(b));
   return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+async function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
 }
 
 function signSession(payload) {
@@ -167,17 +178,36 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/admin/login', (req, res) => {
-  if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
-    return res.status(503).json({ message: 'لم يتم إعداد حساب الإدارة بعد. أضف ADMIN_USERNAME و ADMIN_PASSWORD في متغيرات البيئة.' });
+app.post('/api/admin/login', async (req, res) => {
+  const { username, password } = req.body || {};
+  
+  // Check against environment variables first (for backward compatibility)
+  if (ADMIN_USERNAME && ADMIN_PASSWORD) {
+    const valid = timingSafeEqualText(username, ADMIN_USERNAME) && timingSafeEqualText(password, ADMIN_PASSWORD);
+    if (valid) {
+      const token = signSession({
+        username: ADMIN_USERNAME,
+        expiresAt: Date.now() + ADMIN_SESSION_HOURS * 60 * 60 * 1000
+      });
+      res.cookie('admin_session', token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: ADMIN_SESSION_HOURS * 60 * 60 * 1000
+      });
+      return res.json({ message: 'تم تسجيل الدخول بنجاح.', username: ADMIN_USERNAME });
+    }
+  }
+  
+  // Check against MongoDB admin accounts
+  const hashedPassword = await hashPassword(password);
+  const admin = await Admin.findOne({ username, password: hashedPassword });
+  if (!admin) {
+    return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
   }
 
-  const { username, password } = req.body || {};
-  const valid = timingSafeEqualText(username, ADMIN_USERNAME) && timingSafeEqualText(password, ADMIN_PASSWORD);
-  if (!valid) return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
-
   const token = signSession({
-    username: ADMIN_USERNAME,
+    username: admin.username,
     expiresAt: Date.now() + ADMIN_SESSION_HOURS * 60 * 60 * 1000
   });
   res.cookie('admin_session', token, {
@@ -186,7 +216,7 @@ app.post('/api/admin/login', (req, res) => {
     secure: process.env.NODE_ENV === 'production',
     maxAge: ADMIN_SESSION_HOURS * 60 * 60 * 1000
   });
-  return res.json({ message: 'تم تسجيل الدخول بنجاح.', username: ADMIN_USERNAME });
+  return res.json({ message: 'تم تسجيل الدخول بنجاح.', username: admin.username });
 });
 
 app.post('/api/admin/logout', (_req, res) => {
@@ -196,6 +226,33 @@ app.post('/api/admin/logout', (_req, res) => {
 
 app.get('/api/admin/me', adminRequired, (req, res) => {
   res.json({ username: req.admin.username });
+});
+
+app.post('/api/admin/create', adminRequired, async (req, res) => {
+  const { username, password } = req.body || {};
+  
+  if (!username || !password) {
+    return res.status(400).json({ message: 'اسم المستخدم وكلمة المرور مطلوبان.' });
+  }
+  
+  if (username.length < 3 || username.length > 50) {
+    return res.status(400).json({ message: 'اسم المستخدم يجب أن يكون بين 3 و 50 حرف.' });
+  }
+  
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.' });
+  }
+  
+  try {
+    const hashedPassword = await hashPassword(password);
+    const admin = await Admin.create({ username, password: hashedPassword });
+    return res.json({ message: 'تم إنشاء حساب الأدمن بنجاح.', username: admin.username });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: 'اسم المستخدم موجود بالفعل.' });
+    }
+    return res.status(500).json({ message: 'حدث خطأ أثناء إنشاء حساب الأدمن.' });
+  }
 });
 
 app.get('/api/admin/summary', adminRequired, async (_req, res) => {
@@ -275,7 +332,7 @@ app.use((_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')
 
 mongoose.connect(MONGODB_URI)
   .then(async () => {
-    await Promise.all([Registration.init(), Workshop.init()]);
+    await Promise.all([Registration.init(), Workshop.init(), Admin.init()]);
     await Workshop.findOneAndUpdate(
       { workshopId: WORKSHOP_ID },
       { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0, registrationOpen: true } },

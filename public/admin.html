@@ -47,6 +47,11 @@
           <label>تعديل الحد الأقصى للمقاعد<input id="capacityInput" name="capacity" type="number" min="1" required></label>
           <button type="submit">حفظ الحد</button>
         </form>
+        <form id="createAdminForm" class="capacity-form">
+          <label>إنشاء حساب أدمن جديد<input id="newAdminUsername" name="username" placeholder="اسم المستخدم" required></label>
+          <label>كلمة المرور<input id="newAdminPassword" name="password" type="password" placeholder="كلمة المرور" required></label>
+          <button type="submit">إنشاء حساب</button>
+        </form>
         <div class="tools">
           <button id="toggleRegistrationBtn" type="button" class="danger">إغلاق التقديم</button>
           <input id="searchInput" placeholder="بحث بالاسم أو البريد أو الهاتف">
