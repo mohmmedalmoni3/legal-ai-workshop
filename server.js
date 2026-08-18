@@ -88,20 +88,6 @@ const customFieldSchema = new mongoose.Schema({
 });
 const CustomField = mongoose.model('CustomField', customFieldSchema);
 
-const smsSettingsSchema = new mongoose.Schema({
-  workshopId: { type: String, required: true, unique: true },
-  twilioAccountSid: { type: String, trim: true },
-  twilioAuthToken: { type: String, trim: true },
-  twilioPhoneNumber: { type: String, trim: true },
-  smsEnabled: { type: Boolean, default: false },
-  notifyOnNewRegistration: { type: Boolean, default: true },
-  notifyOnCapacityAlert: { type: Boolean, default: true },
-  adminPhoneNumber: { type: String, trim: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-const SmsSettings = mongoose.model('SmsSettings', smsSettingsSchema);
-
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map((cookie) => {
     const [name, ...value] = cookie.trim().split('=');
@@ -117,30 +103,6 @@ function timingSafeEqualText(a = '', b = '') {
 
 async function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
-}
-
-async function sendSMS(phoneNumber, message) {
-  try {
-    const smsSettings = await SmsSettings.findOne({ workshopId: WORKSHOP_ID });
-    if (!smsSettings || !smsSettings.smsEnabled) {
-      console.log('SMS not enabled or settings not found');
-      return false;
-    }
-
-    const twilio = require('twilio');
-    const client = new twilio(smsSettings.twilioAccountSid, smsSettings.twilioAuthToken);
-    
-    await client.messages.create({
-      body: message,
-      from: smsSettings.twilioPhoneNumber,
-      to: phoneNumber
-    });
-    
-    return true;
-  } catch (error) {
-    console.error('SMS sending failed:', error.message);
-    return false;
-  }
 }
 
 function signSession(payload) {
@@ -473,56 +435,12 @@ app.delete('/api/admin/custom-fields/:fieldId', adminRequired, async (req, res) 
   }
 });
 
-app.get('/api/admin/sms-settings', adminRequired, async (_req, res) => {
-  try {
-    const settings = await SmsSettings.findOne({ workshopId: WORKSHOP_ID }).lean();
-    if (!settings) {
-      return res.json({ 
-        smsEnabled: false, 
-        notifyOnNewRegistration: true, 
-        notifyOnCapacityAlert: true 
-      });
-    }
-    // Don't send sensitive data
-    const { twilioAuthToken, ...safeSettings } = settings;
-    return res.json(safeSettings);
-  } catch (error) {
-    return res.status(500).json({ message: 'حدث خطأ أثناء جلب إعدادات SMS.' });
-  }
-});
-
-app.post('/api/admin/sms-settings', adminRequired, async (req, res) => {
-  const { twilioAccountSid, twilioAuthToken, twilioPhoneNumber, smsEnabled, notifyOnNewRegistration, notifyOnCapacityAlert, adminPhoneNumber } = req.body || {};
-  
-  try {
-    const settings = await SmsSettings.findOneAndUpdate(
-      { workshopId: WORKSHOP_ID },
-      { 
-        twilioAccountSid, 
-        twilioAuthToken, 
-        twilioPhoneNumber, 
-        smsEnabled: smsEnabled || false, 
-        notifyOnNewRegistration: notifyOnNewRegistration !== false, 
-        notifyOnCapacityAlert: notifyOnCapacityAlert !== false, 
-        adminPhoneNumber,
-        updatedAt: Date.now()
-      },
-      { upsert: true, new: true }
-    );
-    
-    const { twilioAuthToken: _, ...safeSettings } = settings.toObject();
-    return res.json({ message: 'تم حفظ إعدادات SMS بنجاح.', settings: safeSettings });
-  } catch (error) {
-    return res.status(500).json({ message: 'حدث خطأ أثناء حفظ إعدادات SMS.' });
-  }
-});
-
 app.use(express.static(path.join(__dirname, 'public')));
 app.use((_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 mongoose.connect(MONGODB_URI)
   .then(async () => {
-    await Promise.all([Registration.init(), Workshop.init(), Admin.init(), CustomField.init(), SmsSettings.init()]);
+    await Promise.all([Registration.init(), Workshop.init(), Admin.init(), CustomField.init()]);
     await Workshop.findOneAndUpdate(
       { workshopId: WORKSHOP_ID },
       { $setOnInsert: { workshopId: WORKSHOP_ID, capacity: CAPACITY, registeredCount: 0, registrationOpen: true } },

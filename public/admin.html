@@ -32,22 +32,8 @@
           <span class="eyebrow">لوحة التحكم</span>
           <h1>إدارة تسجيلات الورشة</h1>
         </div>
-        <div class="header-actions">
-          <button id="notificationBtn" class="ghost notification-btn">
-            <span class="notification-icon">🔔</span>
-            <span id="notificationCount" class="notification-count hidden">0</span>
-          </button>
-          <button id="logoutBtn" class="ghost">تسجيل الخروج</button>
-        </div>
+        <button id="logoutBtn" class="ghost">تسجيل الخروج</button>
       </header>
-
-      <div id="notificationPanel" class="notification-panel hidden">
-        <div class="notification-header">
-          <h3>الإشعارات</h3>
-          <button id="clearNotificationsBtn" class="ghost">مسح الكل</button>
-        </div>
-        <div id="notificationList" class="notification-list"></div>
-      </div>
 
       <section class="stats-section">
         <section class="stats">
@@ -122,31 +108,6 @@
           </form>
         </div>
         <div id="customFieldsList" class="custom-fields-list"></div>
-      </section>
-
-      <section class="sms-settings-section">
-        <h3>إعدادات الرسائل النصية (SMS)</h3>
-        <div class="sms-controls">
-          <form id="smsSettingsForm" class="control-form">
-            <label class="check">
-              <input id="smsEnabled" name="smsEnabled" type="checkbox">
-              <span>تفعيل الرسائل النصية</span>
-            </label>
-            <label>Twilio Account SID<input id="twilioAccountSid" name="twilioAccountSid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></label>
-            <label>Twilio Auth Token<input id="twilioAuthToken" name="twilioAuthToken" type="password" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></label>
-            <label>رقم هاتف Twilio<input id="twilioPhoneNumber" name="twilioPhoneNumber" placeholder="+1234567890"></label>
-            <label>رقم هاتف الأدمن للإشعارات<input id="adminPhoneNumber" name="adminPhoneNumber" placeholder="+1234567890"></label>
-            <label class="check">
-              <input id="notifyOnNewRegistration" name="notifyOnNewRegistration" type="checkbox" checked>
-              <span>إشعار عند تسجيل جديد</span>
-            </label>
-            <label class="check">
-              <input id="notifyOnCapacityAlert" name="notifyOnCapacityAlert" type="checkbox" checked>
-              <span>إشعار عند اقتراب اكتمال المقاعد</span>
-            </label>
-            <button type="submit">حفظ الإعدادات</button>
-          </form>
-        </div>
       </section>
 
       <section class="registrations-section">
