@@ -255,6 +255,39 @@ app.post('/api/admin/create', adminRequired, async (req, res) => {
   }
 });
 
+app.get('/api/admin/list', adminRequired, async (_req, res) => {
+  try {
+    const admins = await Admin.find().select('username createdAt -_id').sort({ createdAt: -1 });
+    return res.json({ admins });
+  } catch (error) {
+    return res.status(500).json({ message: 'حدث خطأ أثناء جلب قائمة الأدمن.' });
+  }
+});
+
+app.delete('/api/admin/:username', adminRequired, async (req, res) => {
+  const { username } = req.params;
+  
+  // Prevent deleting the currently logged in admin
+  if (username === req.admin.username) {
+    return res.status(400).json({ message: 'لا يمكنك حذف حسابك الحالي.' });
+  }
+  
+  // Prevent deleting the environment admin
+  if (username === ADMIN_USERNAME) {
+    return res.status(400).json({ message: 'لا يمكن حذف حساب الأدمن الأساسي.' });
+  }
+  
+  try {
+    const result = await Admin.deleteOne({ username });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'حساب الأدمن غير موجود.' });
+    }
+    return res.json({ message: 'تم حذف حساب الأدمن بنجاح.' });
+  } catch (error) {
+    return res.status(500).json({ message: 'حدث خطأ أثناء حذف حساب الأدمن.' });
+  }
+});
+
 app.get('/api/admin/summary', adminRequired, async (_req, res) => {
   const [workshop, registrationsCount] = await Promise.all([
     Workshop.findOne({ workshopId: WORKSHOP_ID }).lean(),
@@ -325,6 +358,15 @@ app.get('/api/admin/registrations.csv', adminRequired, async (_req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="registrations.csv"');
   res.send(`\uFEFF${rows.join('\n')}`);
+});
+
+app.get('/api/admin/registrations.json', adminRequired, async (_req, res) => {
+  const registrations = await Registration.find({ workshopId: WORKSHOP_ID })
+    .sort({ createdAt: -1 })
+    .lean();
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="registrations.json"');
+  res.json(registrations);
 });
 
 app.use(express.static(path.join(__dirname, 'public')));

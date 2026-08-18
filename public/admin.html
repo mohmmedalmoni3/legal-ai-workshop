@@ -42,6 +42,19 @@
         <div><span>حالة التقديم</span><b id="registrationStateValue">-</b></div>
       </section>
 
+      <section class="registration-chart">
+        <h3>نسبة التسجيل</h3>
+        <div class="progress-container">
+          <div class="progress-bar" id="progressBar">
+            <span class="progress-text" id="progressText">0%</span>
+          </div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-color registered"></span>المسجلون</div>
+          <div class="legend-item"><span class="legend-color remaining"></span>المتبقي</div>
+        </div>
+      </section>
+
       <section class="controls">
         <form id="capacityForm" class="capacity-form">
           <label>تعديل الحد الأقصى للمقاعد<input id="capacityInput" name="capacity" type="number" min="1" required></label>
@@ -54,9 +67,27 @@
         </form>
         <div class="tools">
           <button id="toggleRegistrationBtn" type="button" class="danger">إغلاق التقديم</button>
+          <select id="filterType">
+            <option value="">الكل</option>
+            <option value="محامي">محامي</option>
+            <option value="مستشار قانوني">مستشار قانوني</option>
+            <option value="طالب قانون">طالب قانون</option>
+            <option value="خريج قانون">خريج قانون</option>
+            <option value="مدرب">مدرب</option>
+            <option value="مختص قانوني">مختص قانوني</option>
+            <option value="أخرى">أخرى</option>
+          </select>
           <input id="searchInput" placeholder="بحث بالاسم أو البريد أو الهاتف">
-          <a class="download" href="/api/admin/registrations.csv">تصدير CSV</a>
+          <div class="export-buttons">
+            <a class="download" href="/api/admin/registrations.csv">تصدير CSV</a>
+            <a class="download" href="/api/admin/registrations.json">تصدير JSON</a>
+          </div>
         </div>
+      </section>
+
+      <section class="admin-management">
+        <h3>إدارة حسابات الأدمن</h3>
+        <div id="adminList" class="admin-list"></div>
       </section>
 
       <p id="adminStatus" class="status"></p>

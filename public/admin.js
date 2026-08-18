@@ -14,7 +14,11 @@ const createAdminForm = document.querySelector('#createAdminForm');
 const toggleRegistrationBtn = document.querySelector('#toggleRegistrationBtn');
 const registrationsBody = document.querySelector('#registrationsBody');
 const searchInput = document.querySelector('#searchInput');
+const filterType = document.querySelector('#filterType');
 const emptyState = document.querySelector('#emptyState');
+const adminList = document.querySelector('#adminList');
+const progressBar = document.querySelector('#progressBar');
+const progressText = document.querySelector('#progressText');
 
 let registrations = [];
 let registrationOpen = true;
@@ -61,9 +65,12 @@ function escapeHtml(value) {
 
 function renderRows() {
   const query = searchInput.value.trim().toLowerCase();
+  const typeFilter = filterType.value;
   const filtered = registrations.filter((item) => {
     const haystack = `${item.fullName} ${item.email} ${item.phone} ${item.participantType} ${item.country} ${item.experience || ''}`.toLowerCase();
-    return haystack.includes(query);
+    const matchesSearch = haystack.includes(query);
+    const matchesType = !typeFilter || item.participantType === typeFilter;
+    return matchesSearch && matchesType;
   });
   registrationsBody.innerHTML = filtered.map((item) => `
     <tr>
@@ -94,6 +101,15 @@ async function loadDashboard() {
   capacityInput.value = summary.capacity;
   registrations = registrationsData.registrations;
   renderRows();
+  await loadAdminList();
+  updateProgressBar(summary.registered, summary.capacity);
+}
+
+function updateProgressBar(registered, capacity) {
+  const percentage = capacity > 0 ? Math.round((registered / capacity) * 100) : 0;
+  progressBar.style.setProperty('--registered', `${percentage}%`);
+  progressBar.setAttribute('data-registered', percentage);
+  progressText.textContent = `${percentage}%`;
 }
 
 loginForm.addEventListener('submit', async (event) => {
@@ -137,10 +153,47 @@ createAdminForm.addEventListener('submit', async (event) => {
     const data = await api('/api/admin/create', { method: 'POST', body: JSON.stringify(payload) });
     setStatus(adminStatus, data.message, 'success');
     createAdminForm.reset();
+    await loadAdminList();
   } catch (error) {
     setStatus(adminStatus, error.message, 'error');
   }
 });
+
+async function loadAdminList() {
+  try {
+    const data = await api('/api/admin/list');
+    renderAdminList(data.admins);
+  } catch (error) {
+    console.error('Failed to load admin list:', error);
+  }
+}
+
+function renderAdminList(admins) {
+  adminList.innerHTML = admins.map((admin) => `
+    <div class="admin-item">
+      <div class="admin-info">
+        <span class="admin-username">${escapeHtml(admin.username)}</span>
+        <span class="admin-date">${formatDate(admin.createdAt)}</span>
+      </div>
+      <button class="delete-admin-btn" data-username="${escapeHtml(admin.username)}">حذف</button>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.delete-admin-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const username = btn.dataset.username;
+      if (!confirm(`هل أنت متأكد من حذف حساب الأدمن "${username}"؟`)) return;
+      
+      try {
+        await api(`/api/admin/${username}`, { method: 'DELETE' });
+        setStatus(adminStatus, 'تم حذف حساب الأدمن بنجاح.', 'success');
+        await loadAdminList();
+      } catch (error) {
+        setStatus(adminStatus, error.message, 'error');
+      }
+    });
+  });
+}
 
 toggleRegistrationBtn.addEventListener('click', async () => {
   const nextState = !registrationOpen;
@@ -158,6 +211,7 @@ toggleRegistrationBtn.addEventListener('click', async () => {
 });
 
 searchInput.addEventListener('input', renderRows);
+filterType.addEventListener('change', renderRows);
 
 api('/api/admin/me')
   .then(async () => {
