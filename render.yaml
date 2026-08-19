@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: legal-ai-workshop
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: WORKSHOP_ID
+        value: ai-law-2026
+      - key: WORKSHOP_TITLE
+        value: كيفية إدخال واستخدام الذكاء الاصطناعي في القانون (بشكل خاص المحاماة)
+      - key: WORKSHOP_CAPACITY
+        value: 100
+      - key: CORS_ORIGIN
+        value: ""
+      - key: MONGODB_URI
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SECRET
+        sync: false

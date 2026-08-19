@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>لوحة الإدارة | ورشة الذكاء الاصطناعي في القانون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+  <main class="shell">
+    <section id="loginView" class="login-panel">
+      <div class="brand">
+        <span>LEGAL AI</span>
+        <h1>لوحة إدارة التسجيلات</h1>
+        <p>دخول مخصص للمنظم لمتابعة المسجلين وتعديل حد المقاعد.</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <label>اسم المستخدم<input name="username" required autocomplete="username"></label>
+        <label>كلمة المرور<input name="password" type="password" required autocomplete="current-password"></label>
+        <button type="submit">دخول</button>
+        <p id="loginStatus" class="status"></p>
+      </form>
+    </section>
+
+    <section id="adminView" class="dashboard" hidden>
+      <header class="topbar">
+        <div>
+          <span class="eyebrow">لوحة التحكم</span>
+          <h1>إدارة تسجيلات الورشة</h1>
+        </div>
+        <button id="logoutBtn" class="ghost">تسجيل الخروج</button>
+      </header>
+
+      <section class="stats-section">
+        <section class="stats">
+          <div><span>عدد المقاعد</span><b id="capacityValue">-</b></div>
+          <div><span>المسجلون</span><b id="registeredValue">-</b></div>
+          <div><span>المتبقي</span><b id="remainingValue">-</b></div>
+          <div><span>حالة التقديم</span><b id="registrationStateValue">-</b></div>
+        </section>
+
+        <section class="registration-chart">
+          <h3>نسبة التسجيل</h3>
+          <div class="progress-container">
+            <div class="progress-bar" id="progressBar">
+              <span class="progress-text" id="progressText">0%</span>
+            </div>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><span class="legend-color registered"></span>المسجلون</div>
+            <div class="legend-item"><span class="legend-color remaining"></span>المتبقي</div>
+          </div>
+        </section>
+      </section>
+
+      <section class="workshop-controls">
+        <h3>إعدادات الورشة</h3>
+        <div class="controls-grid">
+          <form id="capacityForm" class="control-form">
+            <label>تعديل الحد الأقصى للمقاعد<input id="capacityInput" name="capacity" type="number" min="1" required></label>
+            <button type="submit">حفظ الحد</button>
+          </form>
+          <div class="control-action">
+            <button id="toggleRegistrationBtn" type="button" class="danger">إغلاق التقديم</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-management">
+        <h3>إدارة حسابات الأدمن</h3>
+        <div class="admin-controls">
+          <form id="createAdminForm" class="control-form">
+            <label>إنشاء حساب أدمن جديد<input id="newAdminUsername" name="username" placeholder="اسم المستخدم" required></label>
+            <label>كلمة المرور<input id="newAdminPassword" name="password" type="password" placeholder="كلمة المرور" required></label>
+            <button type="submit">إنشاء حساب</button>
+          </form>
+        </div>
+        <div id="adminList" class="admin-list"></div>
+      </section>
+
+
+      <section class="registrations-section">
+        <div class="section-header">
+          <h3>قائمة المسجلين</h3>
+          <div class="search-tools">
+            <select id="filterType">
+              <option value="">الكل</option>
+              <option value="محامي">محامي</option>
+              <option value="مستشار قانوني">مستشار قانوني</option>
+              <option value="طالب قانون">طالب قانون</option>
+              <option value="خريج قانون">خريج قانون</option>
+              <option value="مدرب">مدرب</option>
+              <option value="مختص قانوني">مختص قانوني</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+            <input id="searchInput" placeholder="بحث بالاسم أو البريد أو الهاتف">
+            <div class="export-buttons">
+              <a class="download" href="/api/admin/registrations.csv">تصدير CSV</a>
+              <a class="download" href="/api/admin/registrations.json">تصدير JSON</a>
+            </div>
+          </div>
+        </div>
+        <p id="adminStatus" class="status"></p>
+        <section class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الاسم</th>
+                <th>البريد</th>
+                <th>الهاتف</th>
+                <th>نوع المشارك</th>
+                <th>الدولة / المحافظة</th>
+                <th>الخبرة</th>
+                <th>وقت التسجيل</th>
+              </tr>
+            </thead>
+            <tbody id="registrationsBody"></tbody>
+          </table>
+          <div id="emptyState" class="empty" hidden>لا توجد تسجيلات مطابقة.</div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="/admin.js"></script>
+</body>
+</html>
